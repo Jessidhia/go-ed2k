@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -16,6 +17,8 @@ var useNullChunk = flag.Bool("null-chunk", false,
                      This is used for the primary hash in AniDB, and was used in older versions of ed2k.`)
 var checkMode = flag.Bool("c", false,
 	`If true, takes a previous output of this program and verifies the hashes.`)
+var uriMode = flag.Bool("uri", false,
+	`If true, outputs ed2k URIs instead of a verifiable digest.`)
 
 func hashFile(chunkMode bool, path string) (hash string, err error) {
 	var fh *os.File
@@ -42,6 +45,15 @@ func makeLine(hash string, chunkMode bool, path string) string {
 	return fmt.Sprintf("%s %s%s", hash, mode, path)
 }
 
+func makeURI(hash string, path string) string {
+	fi, err := os.Stat(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return ""
+	}
+	return strings.Join([]string{"ed2k://", "file", path, strconv.FormatInt(fi.Size(), 10), hash, "/"}, "|")
+}
+
 func makeDigest(paths ...string) (digest string) {
 	lines := make([]string, 0, len(paths))
 	for _, path := range paths {
@@ -49,7 +61,11 @@ func makeDigest(paths ...string) (digest string) {
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		} else {
-			lines = append(lines, makeLine(hash, *useNullChunk, path)) // filepath.Basename(path)
+			if *uriMode {
+				lines = append(lines, makeURI(hash, path))
+			} else {
+				lines = append(lines, makeLine(hash, *useNullChunk, path))
+			}
 		}
 	}
 	return strings.Join(lines, "\n")
