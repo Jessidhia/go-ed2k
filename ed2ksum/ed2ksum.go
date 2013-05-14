@@ -13,7 +13,7 @@ import (
 
 var useNullChunk = flag.Bool("null-chunk", false,
 	`If true, append a null chunk to the end of files with size multiple of the ed2k chunk size.
-                          This is used for the primary hash in AniDB, and was used in older versions of ed2k.`)
+                     This is used for the primary hash in AniDB, and was used in older versions of ed2k.`)
 var checkMode = flag.Bool("c", false,
 	`If true, takes a previous output of this program and verifies the hashes.`)
 
