@@ -1,15 +1,16 @@
-package ed2k
+package ed2k_test
 
 import "fmt"
+import "github.com/Kovensky/go-ed2k"
 
 func ExampleNoInput() {
-	ed2k := New(false)
+	ed2k := ed2k.New(false)
 	fmt.Println(ed2k)
 	// Output: 31d6cfe0d16ae931b73c59d7e0c089c0
 }
 
 func ExampleSmall() {
-	ed2k := New(false) // mode is irrelevant for small inputs
+	ed2k := ed2k.New(false) // mode is irrelevant for small inputs
 	ed2k.Write([]byte("small example"))
 	fmt.Println(ed2k)
 	// Output: 3e01197bc54364cb86a41738b06ae679
@@ -17,7 +18,7 @@ func ExampleSmall() {
 
 func nullTest(nullChunk bool, size int) {
 	zeros := make([]byte, size)
-	ed2k := New(nullChunk)
+	ed2k := ed2k.New(nullChunk)
 	ed2k.Write(zeros)
 	fmt.Println(ed2k)
 }
