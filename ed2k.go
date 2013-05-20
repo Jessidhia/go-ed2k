@@ -16,27 +16,76 @@ const BlockSize = 9728000
 
 type digest struct {
 	currentChunk     []byte
-	hashList         []byte
 	endWithNullChunk bool
-	md4              hash.Hash
+
+	reqCurrentHashes chan bool
+	currentHashes    chan []byte
+	addHash          chan chan []byte
+	quitLoop         chan bool
+}
+
+func (d *digest) hashLoop() {
+	var (
+		notify        bool
+		hashList      = make([]byte, 0)
+		runningHashes = make([]chan []byte, 0)
+	)
+	for {
+		var nextHash <-chan []byte
+		if len(runningHashes) > 0 {
+			nextHash = runningHashes[0]
+		} else if notify {
+			notify = false
+			list := make([]byte, len(hashList))
+			copy(list, hashList)
+			d.currentHashes <- list
+		}
+
+		select {
+		case c := <-d.addHash:
+			runningHashes = append(runningHashes, c)
+		case hash := <-nextHash:
+			hashList = append(hashList, hash...)
+			runningHashes = runningHashes[1:]
+		case <-d.reqCurrentHashes:
+			notify = true
+		case <-d.quitLoop:
+			// flush the running hashes
+			go func() {
+				for _, c := range runningHashes {
+					<-c
+				}
+			}()
+			if notify {
+				d.currentHashes <- []byte{}
+			}
+			d.quitLoop <- true
+			return
+		}
+	}
 }
 
 func (d *digest) Reset() {
 	d.currentChunk = make([]byte, 0, BlockSize)
-	d.hashList = make([]byte, 0, Size) // hashList can grow arbitrarily; we just give it an initial non-tiny capacity
-	if d.md4 == nil {
-		d.md4 = md4.New()
-	} else {
-		d.md4.Reset()
+
+	if d.quitLoop != nil {
+		d.quitLoop <- true
+		<-d.quitLoop
+		close(d.quitLoop)
 	}
+	d.reqCurrentHashes = make(chan bool)
+	d.quitLoop = make(chan bool)
+	d.currentHashes = make(chan []byte)
+	d.addHash = make(chan chan []byte)
+
+	go d.hashLoop()
 }
 
 // New returns a new hash.Hash computing the ed2k checksum.
 // The bool argument chooses between the new (false) or old (true) blockchain finishing algorithm.
 // In the page given in the package description, false picks the "blue" method, true picks the "red" method.
 func New(endWithNullChunk bool) hash.Hash {
-	d := new(digest)
-	d.endWithNullChunk = endWithNullChunk
+	d := &digest{endWithNullChunk: endWithNullChunk}
 	d.Reset()
 	return d
 }
@@ -50,33 +99,33 @@ func (d *digest) Write(p []byte) (i int, err error) {
 		d.currentChunk = d.currentChunk[:len(d.currentChunk)+count]
 		i += count
 		if len(d.currentChunk) == cap(d.currentChunk) && len(p[i:]) > 0 {
-			d.hashList = d.md4sum(d.currentChunk, d.hashList)
-			d.currentChunk = d.currentChunk[:0] // reset len to 0
+			d.addHash <- md4SumAsync(d.currentChunk)
+			// the old currentChunk now belongs to the md4 goroutine, make a new one
+			d.currentChunk = make([]byte, 0, BlockSize)
 		}
 	}
 	return
 }
 
-func (d0 *digest) Sum(p []byte) []byte {
-	d := new(digest)
-	*d = *d0
+func (d *digest) Sum(p []byte) []byte {
+	currentChunk := d.currentChunk
 
-	if d.endWithNullChunk && len(d.currentChunk) == cap(d.currentChunk) {
-		d.hashList = d.md4sum(d.currentChunk, d.hashList)
-		d.currentChunk = d.currentChunk[:0] // Leave a null chunk for appending
-	} else if len(d.hashList) == 0 {
+	d.reqCurrentHashes <- true
+	hashList := <-d.currentHashes
+
+	if d.endWithNullChunk && len(currentChunk) == cap(currentChunk) {
+		hashList = md4Sum(currentChunk, hashList)
+		currentChunk = currentChunk[:0] // Leave a null chunk for appending
+	} else if len(hashList) == 0 {
 		// We just hash the data itself, instead of "chunking"
-		ret := d.md4sum(d.currentChunk, nil)
-		d.currentChunk = nil
-		return ret
+		return md4Sum(currentChunk, nil)
 	}
 	// We always append a chunk if d.endWithNullChunk, regardless of length
-	if d.endWithNullChunk || len(d.currentChunk) > 0 {
-		d.hashList = d.md4sum(d.currentChunk, d.hashList)
+	if d.endWithNullChunk || len(currentChunk) > 0 {
+		hashList = md4Sum(currentChunk, hashList)
 	}
 
-	d.currentChunk = nil // release memory
-	return d.md4sum(d.hashList, p)
+	return md4Sum(hashList, p)
 }
 
 // Returns an hexadecimal representation of the hash
@@ -89,8 +138,16 @@ func (d *digest) String() string {
 	return strings.Join(parts, "")
 }
 
-func (d *digest) md4sum(data []byte, list []byte) []byte {
-	d.md4.Reset()
-	d.md4.Write(data)
-	return d.md4.Sum(list)
+func md4Sum(data []byte, list []byte) []byte {
+	md4 := md4.New()
+	md4.Write(data)
+	return md4.Sum(list)
+}
+
+func md4SumAsync(data []byte) chan []byte {
+	c := make(chan []byte)
+	go func() {
+		c <- md4Sum(data, nil)
+	}()
+	return c
 }
