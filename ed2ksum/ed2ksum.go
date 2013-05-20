@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -106,6 +107,7 @@ func (p Pluralizable) DumbPluralize(count int) string {
 }
 
 func main() {
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 	args := flag.Args()
 	if len(args) == 0 {
