@@ -1,7 +1,16 @@
 package ed2k_test
 
-import "fmt"
-import "github.com/Kovensky/go-ed2k"
+import (
+	"fmt"
+	"github.com/Kovensky/go-ed2k"
+	"io"
+)
+
+type FakeReader int
+
+func (_ *FakeReader) Read(p []byte) (n int, err error) {
+	return len(p), nil
+}
 
 func ExampleNoInput() {
 	ed2k := ed2k.New(false)
@@ -16,10 +25,11 @@ func ExampleSmall() {
 	// Output: 3e01197bc54364cb86a41738b06ae679
 }
 
-func nullTest(nullChunk bool, size int) {
-	zeros := make([]byte, size)
+var fakeReader = FakeReader(0)
+
+func nullTest(nullChunk bool, size int64) {
 	ed2k := ed2k.New(nullChunk)
-	ed2k.Write(zeros)
+	io.CopyN(ed2k, &fakeReader, size)
 	fmt.Println(ed2k)
 }
 
