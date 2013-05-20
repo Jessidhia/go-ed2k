@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/Kovensky/go-ed2k"
 	"io"
+	"testing"
 )
 
 type FakeReader int
@@ -51,4 +52,28 @@ func ExampleSingleChunk_noNullChunk() {
 func ExampleTwoChunks_noNullChunk() {
 	nullTest(false, 2*9728000)
 	// Output: 194ee9e4fa79b2ee9f8829284c466051
+}
+
+func BenchmarkOneHundredMB_noNullChunk(B *testing.B) {
+	var totalBytes int64 = 100 * 1024 * 1024
+	B.SetBytes(totalBytes)
+
+	ed2k := ed2k.New(false)
+	for i := 0; i < B.N; i++ {
+		ed2k.Reset()
+		io.CopyN(ed2k, &fakeReader, totalBytes)
+		ed2k.Sum(nil)
+	}
+}
+
+func BenchmarkOneHundredMB_nullChunk(B *testing.B) {
+	var totalBytes int64 = 100 * 1024 * 1024
+	B.SetBytes(totalBytes)
+
+	ed2k := ed2k.New(true)
+	for i := 0; i < B.N; i++ {
+		ed2k.Reset()
+		io.CopyN(ed2k, &fakeReader, totalBytes)
+		ed2k.Sum(nil)
+	}
 }
