@@ -36,10 +36,18 @@ func (d *digest) hashLoop() {
 		notify        bool
 		hashList      = make([]byte, 0)
 		runningHashes = make([]chan []byte, 0)
+		maxProcs      = runtime.GOMAXPROCS(0)
 	)
 	for {
 		var nextHash <-chan []byte
-		if len(runningHashes) > 0 {
+
+		addHash := d.addHash
+		if l := len(runningHashes); l > 0 {
+			// make Write() block if we already have 2*GOMAXPROCS hashes flying
+			// avoids having to keep too many live block slices around, specially since they're almost 10MB each
+			if l >= 2*maxProcs {
+				addHash = nil
+			}
 			nextHash = runningHashes[0]
 		} else if notify {
 			notify = false
@@ -49,7 +57,7 @@ func (d *digest) hashLoop() {
 		}
 
 		select {
-		case c := <-d.addHash:
+		case c := <-addHash:
 			runningHashes = append(runningHashes, c)
 		case hash := <-nextHash:
 			hashList = append(hashList, hash...)
