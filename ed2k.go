@@ -3,9 +3,8 @@ package ed2k
 
 import (
 	"code.google.com/p/go.crypto/md4"
-	"fmt"
+	"encoding/hex"
 	"hash"
-	"strings"
 )
 
 // The size of the ed2k checksum in bytes
@@ -130,12 +129,7 @@ func (d *digest) Sum(p []byte) []byte {
 
 // Returns an hexadecimal representation of the hash
 func (d *digest) String() string {
-	sum := d.Sum(nil)
-	parts := make([]string, 0, 2*Size)
-	for _, b := range sum {
-		parts = append(parts, fmt.Sprintf("%02x", b))
-	}
-	return strings.Join(parts, "")
+	return hex.EncodeToString(d.Sum(nil))
 }
 
 func md4Sum(data []byte, list []byte) []byte {
