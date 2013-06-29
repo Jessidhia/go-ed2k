@@ -1,16 +1,24 @@
-/* Package ed2k implements an ed2k hasher as explained in http://wiki.anidb.net/w/Ed2k-hash#How_is_an_ed2k_hash_calculated_exactly.3F */
+/*
+Package ed2k implements an ed2k hasher, as explained in
+http://wiki.anidb.net/w/Ed2k-hash#How_is_an_ed2k_hash_calculated_exactly.3F.
+
+The ed2k hash is essentially a Merkle tree of depth 1 and fixed BlockSize.
+Each leaf node's hash is calculated on its own goroutine.
+Calling Sum() will wait for the hashing goroutines.
+*/
 package ed2k
 
 import (
 	"code.google.com/p/go.crypto/md4"
 	"encoding/hex"
 	"hash"
+	"runtime"
 )
 
-// The size of the ed2k checksum in bytes
+// The size of the ed2k checksum in bytes.
 const Size = md4.Size
 
-// The chunk size in bytes
+// The size of each hash node in bytes.
 const BlockSize = 9728000
 
 type digest struct {
@@ -81,8 +89,14 @@ func (d *digest) Reset() {
 }
 
 // New returns a new hash.Hash computing the ed2k checksum.
+//
 // The bool argument chooses between the new (false) or old (true) blockchain finishing algorithm.
+// The old algorithm was due to an off-by-one bug in the de facto implementation, but is still used
+// in some cases.
+//
 // In the page given in the package description, false picks the "blue" method, true picks the "red" method.
+//
+// See hash.Hash for the interface.
 func New(endWithNullChunk bool) hash.Hash {
 	d := &digest{endWithNullChunk: endWithNullChunk}
 	d.Reset()
@@ -127,7 +141,6 @@ func (d *digest) Sum(p []byte) []byte {
 	return md4Sum(hashList, p)
 }
 
-// Returns an hexadecimal representation of the hash
 func (d *digest) String() string {
 	return hex.EncodeToString(d.Sum(nil))
 }
