@@ -12,6 +12,7 @@ import (
 	"code.google.com/p/go.crypto/md4"
 	"encoding/hex"
 	"hash"
+	"io"
 	"runtime"
 )
 
@@ -20,6 +21,12 @@ const Size = md4.Size
 
 // The size of each hash node in bytes.
 const BlockSize = 9728000
+
+// A hash.Hash that also needs to be Close()d when done.
+type HashCloser interface {
+	hash.Hash
+	io.Closer
+}
 
 type digest struct {
 	currentChunk     []byte
@@ -86,14 +93,29 @@ func (d *digest) Reset() {
 	if d.quitLoop != nil {
 		d.quitLoop <- true
 		<-d.quitLoop
-		close(d.quitLoop)
+	} else {
+		d.reqCurrentHashes = make(chan bool)
+		d.quitLoop = make(chan bool)
+		d.currentHashes = make(chan []byte)
+		d.addHash = make(chan chan []byte)
 	}
-	d.reqCurrentHashes = make(chan bool)
-	d.quitLoop = make(chan bool)
-	d.currentHashes = make(chan []byte)
-	d.addHash = make(chan chan []byte)
 
 	go d.hashLoop()
+}
+
+// Stops the background hasher and releases all memory
+// used by chunks.
+//
+// The hash can be used again if it's Reset().
+func (d *digest) Close() error {
+	if d.quitLoop != nil {
+		d.quitLoop <- true
+		<-d.quitLoop
+		d.quitLoop = nil
+
+		d.currentChunk = nil
+	}
+	return nil
 }
 
 // New returns a new hash.Hash computing the ed2k checksum.
@@ -105,7 +127,7 @@ func (d *digest) Reset() {
 // In the page given in the package description, false picks the "blue" method, true picks the "red" method.
 //
 // See hash.Hash for the interface.
-func New(endWithNullChunk bool) hash.Hash {
+func New(endWithNullChunk bool) HashCloser {
 	d := &digest{endWithNullChunk: endWithNullChunk}
 	d.Reset()
 	return d
