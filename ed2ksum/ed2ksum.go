@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/Kovensky/go-ed2k"
 	"io"
 	"io/ioutil"
 	"os"
@@ -11,6 +10,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/Jessidhia/go-ed2k"
 )
 
 var useNullChunk = flag.Bool("null-chunk", false,

@@ -9,11 +9,12 @@ Calling Sum() will wait for the hashing goroutines.
 package ed2k
 
 import (
-	"code.google.com/p/go.crypto/md4"
 	"encoding/hex"
 	"hash"
 	"io"
 	"runtime"
+
+	"golang.org/x/crypto/md4"
 )
 
 // The size of the ed2k checksum in bytes.
