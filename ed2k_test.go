@@ -3,10 +3,11 @@ package ed2k_test
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/Kovensky/go-ed2k"
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/Jessidhia/go-ed2k"
 )
 
 // A "fake" reader that never writes anything to the []byte.
